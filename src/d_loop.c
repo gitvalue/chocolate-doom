@@ -18,6 +18,10 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
+#include <termios.h>
+#include <unistd.h>
+#include <errno.h>
 
 #include "d_event.h"
 #include "d_loop.h"
@@ -117,6 +121,120 @@ static boolean local_playeringame[NET_MAXPLAYERS];
 
 static int player_class;
 
+// --- Arduino serial input (PoC) ---
+
+static int serial_fd = -1;
+static char serial_buf[3];
+static int serial_head = 0;
+
+static int try_open_serial(const char *path)
+{
+    int fd = open(path, O_RDWR | O_NOCTTY | O_NONBLOCK);
+    if (fd < 0) return -1;
+
+    struct termios tio;
+    if (tcgetattr(fd, &tio) != 0) { close(fd); return -1; }
+
+    cfsetispeed(&tio, B9600);
+    cfsetospeed(&tio, B9600);
+
+    tio.c_cflag &= ~PARENB;
+    tio.c_cflag &= ~CSTOPB;
+    tio.c_cflag &= ~CSIZE;
+    tio.c_cflag |= CS8;
+    tio.c_cflag |= CREAD | CLOCAL;
+    tio.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+    tio.c_iflag &= ~(IXON | IXOFF | IXANY);
+    tio.c_oflag &= ~OPOST;
+    tio.c_cc[VMIN] = 0;
+    tio.c_cc[VTIME] = 1;
+
+    tcflush(fd, TCIOFLUSH);
+    if (tcsetattr(fd, TCSANOW, &tio) != 0) { close(fd); return -1; }
+
+    return fd;
+}
+
+static void Serial_Open(void)
+{
+    if (serial_fd >= 0) return;
+
+    int fd;
+    fd = try_open_serial("/dev/cu.usbmodem111101");
+    
+    if (fd >= 0) { 
+        serial_fd = fd; 
+        return; 
+    }
+}
+
+static void Serial_Close(void)
+{
+    if (serial_fd >= 0)
+    {
+        close(serial_fd);
+        serial_fd = -1;
+    }
+}
+
+static void Serial_Read(ticcmd_t *cmd)
+{
+    // if (serial_fd < 0) return;
+
+    // unsigned char ch;
+    // ssize_t r;
+    // r = read(serial_fd, &ch, 1);
+    // if (r == 1)
+    // {
+    //     cmd->forwardmove += ch;
+    //     printf("Serial read: %d\n", ch);
+    // }
+    // if (r < 0 && errno != EAGAIN && errno != EWOULDBLOCK)
+    // {
+    //     Serial_Close();
+    // }
+
+    if (serial_fd < 0) return;
+
+    char ch;
+    ssize_t r;
+    while ((r = read(serial_fd, &ch, 1)) == 1)
+    {
+        // Expect: [0xFF] [type] [value] [0xFF] [type] [value] ...
+        if (serial_head == 0 && (unsigned char)ch != 0xFF)
+        {
+            // Skip bytes until we find sync marker
+            continue;
+        }
+
+        serial_buf[serial_head++] = ch;
+
+        if (serial_head == 3)
+        {
+            unsigned char sync = (unsigned char)serial_buf[0];
+            unsigned char velocity = (unsigned char)serial_buf[1];
+            unsigned char isButtonPressed = (unsigned char)serial_buf[2];
+
+            if (sync == 0xFF)
+            {
+                cmd->forwardmove = velocity;
+                if (isButtonPressed) {
+                    cmd->buttons |= BT_ATTACK;
+                } else {
+                    cmd->buttons &= ~BT_ATTACK;
+                }
+            }
+
+            serial_head = 0;
+        }
+    }
+
+    if (r < 0 && errno != EAGAIN && errno != EWOULDBLOCK)
+    {
+        Serial_Close();
+    }
+}
+
 
 // 35 fps clock adjusted by offsetms milliseconds
 
@@ -179,6 +297,7 @@ static boolean BuildNewTic(void)
 
     //printf ("mk:%i ",maketic);
     memset(&cmd, 0, sizeof(ticcmd_t));
+    Serial_Read(&cmd);
     loop_interface->BuildTiccmd(&cmd, maketic);
 
     if (net_client_connected)
@@ -302,6 +421,7 @@ void D_ReceiveTic(ticcmd_t *ticcmds, boolean *players_mask)
 void D_StartGameLoop(void)
 {
     lasttime = GetAdjustedTime() / ticdup;
+    Serial_Open();
 }
 
 //
@@ -535,6 +655,7 @@ void D_QuitNetGame (void)
 {
     NET_SV_Shutdown();
     NET_CL_Disconnect();
+    Serial_Close();
 }
 
 static int GetLowTic(void)
