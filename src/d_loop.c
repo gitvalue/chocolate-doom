@@ -123,8 +123,13 @@ static int player_class;
 
 // --- Arduino serial input (PoC) ---
 
+typedef int32_t BufferElement;
+
+#define SERIAL_BUFFER_SIZE 2
+
+static BufferElement delimiter = 0xFFFFFFFF;
 static int serial_fd = -1;
-static char serial_buf[3];
+static BufferElement serial_buf[SERIAL_BUFFER_SIZE];
 static int serial_head = 0;
 
 static int try_open_serial(const char *path)
@@ -179,29 +184,14 @@ static void Serial_Close(void)
 
 static void Serial_Read(ticcmd_t *cmd)
 {
-    // if (serial_fd < 0) return;
-
-    // unsigned char ch;
-    // ssize_t r;
-    // r = read(serial_fd, &ch, 1);
-    // if (r == 1)
-    // {
-    //     cmd->forwardmove += ch;
-    //     printf("Serial read: %d\n", ch);
-    // }
-    // if (r < 0 && errno != EAGAIN && errno != EWOULDBLOCK)
-    // {
-    //     Serial_Close();
-    // }
-
     if (serial_fd < 0) return;
 
-    char ch;
+    BufferElement ch;
     ssize_t r;
-    while ((r = read(serial_fd, &ch, 1)) == 1)
+    while ((r = read(serial_fd, &ch, sizeof(BufferElement))) == sizeof(BufferElement))
     {
         // Expect: [0xFF] [type] [value] [0xFF] [type] [value] ...
-        if (serial_head == 0 && (unsigned char)ch != 0xFF)
+        if (serial_head == 0 && ch != delimiter)
         {
             // Skip bytes until we find sync marker
             continue;
@@ -209,20 +199,23 @@ static void Serial_Read(ticcmd_t *cmd)
 
         serial_buf[serial_head++] = ch;
 
-        if (serial_head == 3)
+        if (serial_head == SERIAL_BUFFER_SIZE)
         {
-            unsigned char sync = (unsigned char)serial_buf[0];
-            unsigned char velocity = (unsigned char)serial_buf[1];
-            unsigned char isButtonPressed = (unsigned char)serial_buf[2];
+            BufferElement sync = serial_buf[0];
+            // unsigned char velocity = (unsigned char)serial_buf[1];
+            BufferElement zRotationVelocity = serial_buf[1] / 16;
+            // unsigned char isButtonPressed = (unsigned char)serial_buf[3];
 
-            if (sync == 0xFF)
+            if (sync == delimiter)
             {
-                cmd->forwardmove = velocity;
-                if (isButtonPressed) {
-                    cmd->buttons |= BT_ATTACK;
-                } else {
-                    cmd->buttons &= ~BT_ATTACK;
-                }
+                // cmd->forwardmove = velocity / 2;
+                cmd->angleturn = zRotationVelocity * (0xFFFFFFFF / 360);
+                // if (isButtonPressed) {
+                //     cmd->buttons |= BT_ATTACK;
+                // } else {
+                //     cmd->buttons &= ~BT_ATTACK;
+                // }
+                // printf("Arduino: zRotVel=%d\n", zRotationVelocity);
             }
 
             serial_head = 0;
