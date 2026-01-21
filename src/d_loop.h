@@ -39,7 +39,7 @@ typedef struct
     // Given the current input state, fill in the fields of the specified
     // ticcmd_t structure with data for a new tic.
 
-    void (*BuildTiccmd)(ticcmd_t *cmd, int maketic);
+    void (*BuildTiccmd)(ticcmd_t *cmd, int maketic, int nextWeapon);
 
     // Advance the game forward one tic, using the specified player input.
 

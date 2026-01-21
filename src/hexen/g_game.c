@@ -194,7 +194,7 @@ int testcontrols_mousespeed;
 
 boolean usearti = true;
 
-void G_BuildTiccmd(ticcmd_t *cmd, int maketic)
+void G_BuildTiccmd(ticcmd_t *cmd, int maketic, int nextWeapon)
 {
     int i;
     boolean strafe, bstrafe;

@@ -125,7 +125,7 @@ static int player_class;
 
 typedef int32_t BufferElement;
 
-#define SERIAL_BUFFER_SIZE 2
+#define SERIAL_BUFFER_SIZE 6
 
 static BufferElement delimiter = 0xFFFFFFFF;
 static int serial_fd = -1;
@@ -162,10 +162,12 @@ static int try_open_serial(const char *path)
 
 static void Serial_Open(void)
 {
+    printf("Opening serial port...\n");
+
     if (serial_fd >= 0) return;
 
     int fd;
-    fd = try_open_serial("/dev/cu.usbmodem111101");
+    fd = try_open_serial("/dev/cu.usbmodem111301");
     
     if (fd >= 0) { 
         serial_fd = fd; 
@@ -182,7 +184,7 @@ static void Serial_Close(void)
     }
 }
 
-static void Serial_Read(ticcmd_t *cmd)
+static void Serial_Read(ticcmd_t *cmd, int *nextWeapon)
 {
     if (serial_fd < 0) return;
 
@@ -202,20 +204,52 @@ static void Serial_Read(ticcmd_t *cmd)
         if (serial_head == SERIAL_BUFFER_SIZE)
         {
             BufferElement sync = serial_buf[0];
-            // unsigned char velocity = (unsigned char)serial_buf[1];
-            BufferElement zRotationVelocity = serial_buf[1] / 16;
-            // unsigned char isButtonPressed = (unsigned char)serial_buf[3];
+            BufferElement zRotationVelocity = (serial_buf[1] / 16) * (0xFFFFFFFF / 360);
+            BufferElement isButtonPressed = serial_buf[2];
+            BufferElement velocityX = serial_buf[3];
+            BufferElement velocityY = serial_buf[4];
+            BufferElement isJoystickButtonPressed = serial_buf[5];
 
             if (sync == delimiter)
             {
-                // cmd->forwardmove = velocity / 2;
-                cmd->angleturn = zRotationVelocity * (0xFFFFFFFF / 360);
-                // if (isButtonPressed) {
-                //     cmd->buttons |= BT_ATTACK;
-                // } else {
-                //     cmd->buttons &= ~BT_ATTACK;
-                // }
-                // printf("Arduino: zRotVel=%d\n", zRotationVelocity);
+                // printf("Arduino input: zRotVel=%d, btn=%d, velX=%d, velY=%d, joyBtn=%d\n",
+                    // zRotationVelocity, isButtonPressed, velocityX, velocityY, isJoystickButtonPressed);
+                // // cmd->forwardmove = velocity / 2;
+                cmd->angleturn = zRotationVelocity;
+                
+                if (isButtonPressed == 1) {
+                    cmd->buttons |= BT_ATTACK;
+                } else if (isButtonPressed == 0) {
+                    cmd->buttons &= ~BT_ATTACK;
+                }
+
+                // /* Map velocityX -> forward/back and velocityY -> strafe left/right.
+                //     velocity* are 32-bit from the serial buffer; scale, apply deadzone
+                //     and clamp into the ticcmd fields. Tune 'scale' and 'deadzone' as needed. */
+
+                // int32_t raw_fwd = velocityX;
+                // int32_t raw_str = velocityY;
+
+                // /* simple deadzone to avoid noise */
+                // const int32_t deadzone = 4;
+                // if ((raw_fwd >= -deadzone) && (raw_fwd <= deadzone)) raw_fwd = 0;
+                // if ((raw_str >= -deadzone) && (raw_str <= deadzone)) raw_str = 0;
+
+                // /* scale down to controller range */
+                // const int32_t scale = 16;
+                // int32_t fwd = raw_fwd / scale;
+                // int32_t str = raw_str / scale;
+
+                // /* clamp to 16-bit signed range (ticcmd fields are small integers) */
+                // if (fwd > 32767) fwd = 32767;
+                // if (fwd < -32768) fwd = -32768;
+                // if (str > 32767) str = 32767;
+                // if (str < -32768) str = -32768;
+
+                // cmd->forwardmove = (short)fwd;
+                // cmd->sidemove    = (short)str;
+
+                // *nextWeapon = isJoystickButtonPressed;
             }
 
             serial_head = 0;
@@ -290,8 +324,10 @@ static boolean BuildNewTic(void)
 
     //printf ("mk:%i ",maketic);
     memset(&cmd, 0, sizeof(ticcmd_t));
-    Serial_Read(&cmd);
-    loop_interface->BuildTiccmd(&cmd, maketic);
+    int nextWeapon = 0;
+
+    Serial_Read(&cmd, &nextWeapon);
+    loop_interface->BuildTiccmd(&cmd, maketic, nextWeapon);
 
     if (net_client_connected)
     {
