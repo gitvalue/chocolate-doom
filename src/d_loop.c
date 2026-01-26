@@ -42,6 +42,8 @@
 #include "net_sdl.h"
 #include "net_loop.h"
 
+#include <math.h>
+
 // The complete set of data for a particular tic.
 
 typedef struct
@@ -126,13 +128,15 @@ static int player_class;
 typedef int16_t BufferElement;
 
 #define SERIAL_PACKET_SIZE 6
+#define SERIAL_BUFFER_SIZE 4096
 
 static BufferElement delimiter = 0xFFFF;
 static int serial_fd = -1;
-static int8_t serial_buf[4096];
+static int8_t serial_buf[SERIAL_BUFFER_SIZE];
 static int serialBufferCount = 0;
 static int packetHeader = -1;
 static int numPacketsRead = 0;
+static int latestJoystickButtonTics[3] = { 0 };
 
 static int try_open_serial(const char *path)
 {
@@ -206,7 +210,7 @@ static void Serial_Read(ticcmd_t *cmd, int *nextWeapon)
     int8_t chunk = 0;
     
     // first, put whatever is in I/O into buffer
-    while (read(serial_fd, &chunk, 1) == 1) {
+    while ((read(serial_fd, &chunk, 1) == 1) && (serialBufferCount < SERIAL_BUFFER_SIZE)) {
         serial_buf[serialBufferCount] = chunk;
         serialBufferCount += 1;
         chunk = 0;
@@ -227,9 +231,52 @@ static void Serial_Read(ticcmd_t *cmd, int *nextWeapon)
     // if packetHeader was found and there's enough data to read --> read it
     if ((packetHeader != -1) && ((SERIAL_PACKET_SIZE * sizeof(BufferElement)) <= (serialBufferCount - packetHeader))) {
         BufferElement *packet = serial_buf + packetHeader;
-        printf("Num packets read = %d", numPacketsRead++);
+        printf("Num pkets read = %d", numPacketsRead++);
         printf("sync = %d, zRotVel = %d, btn = %d, velX = %d, velY = %d, joyBtn=%d\n", packet[0], packet[1], packet[2], packet[3], packet[4], packet[5]);
+        printf("gametic = %d\n", gametic);
+        printf("tics = [%d, %d, %d]\n", latestJoystickButtonTics[0], latestJoystickButtonTics[1], latestJoystickButtonTics[2]);
+        printf("tic rate = %d", TICRATE);
 
+        BufferElement sync = packet[0];
+        int zRotationVelocity = (int)(((double)packet[1] / (double)TICRATE) * 1024);
+        BufferElement isButtonPressed = packet[2];
+        BufferElement velocityX = packet[3];
+        BufferElement velocityY = packet[4];
+        BufferElement isJoystickButtonPressed = packet[5];
+
+        if (!isJoystickButtonPressed) {
+            cmd->angleturn = zRotationVelocity;
+            cmd->buttons &= ~BT_USE;
+        } else {
+            cmd->buttons |= BT_USE;
+
+            latestJoystickButtonTics[0] = latestJoystickButtonTics[1];
+            latestJoystickButtonTics[1] = latestJoystickButtonTics[2];
+            latestJoystickButtonTics[2] = gametic;
+        }
+
+        int doubleClickDelta = latestJoystickButtonTics[2] - latestJoystickButtonTics[1];
+        if ((5 < doubleClickDelta) && (doubleClickDelta < 15)) {
+            *nextWeapon = 1;
+        } else {
+            *nextWeapon = 0;
+        }
+
+        cmd->forwardmove = ((velocityX - 506) * 50) / 506;
+        cmd->sidemove = -((velocityY - 499) * 50) / 499;
+        // x = 1023 --> forward
+        // x = 0 --> backwards
+        // x = 506 --> still
+        // y = 1023 --> left
+        // y = 0 --> right
+        // y = 499 -> still
+        if (isButtonPressed == 1) {
+            cmd->buttons |= BT_ATTACK;
+        } else if (isButtonPressed == 0) {
+            cmd->buttons &= ~BT_ATTACK;
+        }
+
+        // write the rest to the start of the buffer
         int j = 0;
         for (int i = packetHeader + SERIAL_PACKET_SIZE * sizeof(BufferElement) ; i < serialBufferCount ; i++) {
             serial_buf[j] = serial_buf[i];
@@ -241,62 +288,6 @@ static void Serial_Read(ticcmd_t *cmd, int *nextWeapon)
         serialBufferCount = j;
         packetHeader = -1;
     }
-    
-    // printf("Num bytes read = %d\n", numReadBytes);
-    // printf("Num chunks read = %d\n", ++serial_head);
-    
-    // int bufSize = sizeof(BufferElement) * SERIAL_PACKET_SIZE;
-    // memset(serial_buf, 0, bufSize);
-
-    // if (read(serial_fd, serial_buf, bufSize))
-    // {
-    //         BufferElement sync = serial_buf[0];
-    //         BufferElement zRotationVelocity = serial_buf[1];// (serial_buf[1] / 16) * (0xFFFFFFFF / 360);
-    //         BufferElement isButtonPressed = serial_buf[2];
-    //         BufferElement velocityX = serial_buf[3];
-    //         BufferElement velocityY = serial_buf[4];
-    //         BufferElement isJoystickButtonPressed = serial_buf[5];
-
-    //         printf("Arduino input: zRotVel=%d, btn=%d, velX=%d, velY=%d, joyBtn=%d\n", zRotationVelocity, isButtonPressed, velocityX, velocityY, isJoystickButtonPressed);
-    //         // // cmd->forwardmove = velocity / 2;
-    //         // cmd->angleturn = zRotationVelocity;
-            
-    //         // if (isButtonPressed == 1) {
-    //         //     cmd->buttons |= BT_ATTACK;
-    //         // } else if (isButtonPressed == 0) {
-    //         //     cmd->buttons &= ~BT_ATTACK;
-    //         // }
-
-    //         // /* Map velocityX -> forward/back and velocityY -> strafe left/right.
-    //         //     velocity* are 32-bit from the serial buffer; scale, apply deadzone
-    //         //     and clamp into the ticcmd fields. Tune 'scale' and 'deadzone' as needed. */
-
-    //         // int32_t raw_fwd = velocityX;
-    //         // int32_t raw_str = velocityY;
-
-    //         // /* simple deadzone to avoid noise */
-    //         // const int32_t deadzone = 4;
-    //         // if ((raw_fwd >= -deadzone) && (raw_fwd <= deadzone)) raw_fwd = 0;
-    //         // if ((raw_str >= -deadzone) && (raw_str <= deadzone)) raw_str = 0;
-
-    //         // /* scale down to controller range */
-    //         // const int32_t scale = 16;
-    //         // int32_t fwd = raw_fwd / scale;
-    //         // int32_t str = raw_str / scale;
-
-    //         // /* clamp to 16-bit signed range (ticcmd fields are small integers) */
-    //         // if (fwd > 32767) fwd = 32767;
-    //         // if (fwd < -32768) fwd = -32768;
-    //         // if (str > 32767) str = 32767;
-    //         // if (str < -32768) str = -32768;
-
-    //         // cmd->forwardmove = (short)fwd;
-    //         // cmd->sidemove    = (short)str;
-
-    //         // *nextWeapon = isJoystickButtonPressed;
-
-    //         serial_head = 0;
-    // }
 }
 
 
