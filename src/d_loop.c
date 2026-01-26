@@ -231,14 +231,14 @@ static void Serial_Read(ticcmd_t *cmd, int *nextWeapon)
     // if packetHeader was found and there's enough data to read --> read it
     if ((packetHeader != -1) && ((SERIAL_PACKET_SIZE * sizeof(BufferElement)) <= (serialBufferCount - packetHeader))) {
         BufferElement *packet = serial_buf + packetHeader;
-        printf("Num pkets read = %d", numPacketsRead++);
-        printf("sync = %d, zRotVel = %d, btn = %d, velX = %d, velY = %d, joyBtn=%d\n", packet[0], packet[1], packet[2], packet[3], packet[4], packet[5]);
-        printf("gametic = %d\n", gametic);
-        printf("tics = [%d, %d, %d]\n", latestJoystickButtonTics[0], latestJoystickButtonTics[1], latestJoystickButtonTics[2]);
-        printf("tic rate = %d", TICRATE);
+        // printf("Num pkets read = %d", numPacketsRead++);
+        // printf("sync = %d, zRotVel = %d, btn = %d, velX = %d, velY = %d, joyBtn=%d\n", packet[0], packet[1], packet[2], packet[3], packet[4], packet[5]);
+        // printf("gametic = %d\n", gametic);
+        // printf("tics = [%d, %d, %d]\n", latestJoystickButtonTics[0], latestJoystickButtonTics[1], latestJoystickButtonTics[2]);
+        // printf("tic rate = %d", TICRATE);
 
         BufferElement sync = packet[0];
-        int zRotationVelocity = (int)(((double)packet[1] / (double)TICRATE) * 1024);
+        int zRotationVelocity = (int)(((double)packet[1] / (double)TICRATE) * 1080);
         BufferElement isButtonPressed = packet[2];
         BufferElement velocityX = packet[3];
         BufferElement velocityY = packet[4];
@@ -262,8 +262,8 @@ static void Serial_Read(ticcmd_t *cmd, int *nextWeapon)
             *nextWeapon = 0;
         }
 
-        cmd->forwardmove = ((velocityX - 506) * 50) / 506;
-        cmd->sidemove = -((velocityY - 499) * 50) / 499;
+        cmd->forwardmove = ((velocityX - 506) * 30) / 506;
+        cmd->sidemove = -((velocityY - 499) * 30) / 499;
         // x = 1023 --> forward
         // x = 0 --> backwards
         // x = 506 --> still
