@@ -245,7 +245,11 @@ static void Serial_Read(ticcmd_t *cmd, int *nextWeapon)
         BufferElement isJoystickButtonPressed = packet[5];
 
         if (!isJoystickButtonPressed) {
-            cmd->angleturn = zRotationVelocity;
+            int clickDelta = gametic - latestJoystickButtonTics[2];
+            if (2 < clickDelta) {
+                cmd->angleturn = zRotationVelocity;
+            }
+            
             cmd->buttons &= ~BT_USE;
         } else {
             cmd->buttons |= BT_USE;
@@ -253,7 +257,7 @@ static void Serial_Read(ticcmd_t *cmd, int *nextWeapon)
             latestJoystickButtonTics[0] = latestJoystickButtonTics[1];
             latestJoystickButtonTics[1] = latestJoystickButtonTics[2];
             latestJoystickButtonTics[2] = gametic;
-        }
+        } 
 
         int doubleClickDelta = latestJoystickButtonTics[2] - latestJoystickButtonTics[1];
         if ((5 < doubleClickDelta) && (doubleClickDelta < 15)) {
