@@ -292,7 +292,7 @@ static int G_NextWeapon(int direction)
 
 boolean usearti = true;
 
-void G_BuildTiccmd(ticcmd_t *cmd, int maketic, int nextWeapon)
+void G_BuildTiccmd(ticcmd_t *cmd, int maketic, int serialPortDescriptor)
 {
     int i;
     boolean strafe, bstrafe;

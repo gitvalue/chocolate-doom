@@ -20,6 +20,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+#include <unistd.h>
 
 #include "doomdef.h" 
 #include "doomkeys.h"
@@ -232,6 +233,20 @@ int		bodyqueslot;
  
 int             vanilla_savegame_limit = 1;
 int             vanilla_demo_limit = 1;
+
+// --- Arduino serial input ---
+
+typedef int16_t BufferElement;
+
+#define SERIAL_PACKET_SIZE 6
+#define SERIAL_BUFFER_SIZE 4096
+
+static BufferElement delimiter = 0xFFFF;
+static int8_t serial_buf[SERIAL_BUFFER_SIZE];
+static int serialBufferCount = 0;
+static int packetHeader = -1;
+static int numPacketsRead = 0;
+static int latestJoystickButtonTics[3] = { 0 };
  
 int G_CmdChecksum (ticcmd_t* cmd) 
 { 
@@ -322,15 +337,102 @@ static int G_NextWeapon(int direction)
     return weapon_order_table[i].weapon_num;
 }
 
+static void Serial_Read(ticcmd_t *cmd, int serial_fd)
+{
+    if (serial_fd < 0) return;
+    if (gamestate != GS_LEVEL) return;
+
+    int8_t chunk = 0;
+    
+    // first, put whatever is in I/O into buffer
+    while ((read(serial_fd, &chunk, 1) == 1) && (serialBufferCount < SERIAL_BUFFER_SIZE)) {
+        serial_buf[serialBufferCount] = chunk;
+        serialBufferCount += 1;
+        chunk = 0;
+    }
+
+    // If packetHeader is not set (-1) --> go (try) find the packet header
+    if ((packetHeader == -1) && (0 < serialBufferCount)) {
+        for (int i = 0; i <= serialBufferCount - sizeof(BufferElement); i++) {
+            BufferElement candidate = *((BufferElement *)(serial_buf + i));
+
+            if (candidate == delimiter) {
+                packetHeader = i;
+                break;
+            }
+        }
+    }
+
+    // if packetHeader was found and there's enough data to read --> read it
+    if ((packetHeader != -1) && ((SERIAL_PACKET_SIZE * sizeof(BufferElement)) <= (serialBufferCount - packetHeader))) {
+        BufferElement *packet = serial_buf + packetHeader;
+
+        BufferElement sync = packet[0];
+        int zRotationVelocity = (int)(((double)packet[1] / (double)TICRATE) * 1080);
+        BufferElement isButtonPressed = packet[2];
+        BufferElement velocityX = packet[3];
+        BufferElement velocityY = packet[4];
+        BufferElement isJoystickButtonPressed = packet[5];
+
+        if (!isJoystickButtonPressed) {
+            int clickDelta = gametic - latestJoystickButtonTics[2];
+            if (2 < clickDelta) {
+                cmd->angleturn = zRotationVelocity;
+            }
+            
+            cmd->buttons &= ~BT_USE;
+        } else {
+            cmd->buttons |= BT_USE;
+
+            latestJoystickButtonTics[0] = latestJoystickButtonTics[1];
+            latestJoystickButtonTics[1] = latestJoystickButtonTics[2];
+            latestJoystickButtonTics[2] = gametic;
+        } 
+
+        int doubleClickDelta = latestJoystickButtonTics[2] - latestJoystickButtonTics[1];
+        if ((5 < doubleClickDelta) && (doubleClickDelta < 15)) {
+            next_weapon = 1;
+        } else {
+            next_weapon = 0;
+        }
+
+        cmd->forwardmove = ((velocityX - 506) * 30) / 506;
+        cmd->sidemove = -((velocityY - 499) * 30) / 499;
+        // x = 1023 --> forward
+        // x = 0 --> backwards
+        // x = 506 --> still
+        // y = 1023 --> left
+        // y = 0 --> right
+        // y = 499 -> still
+        if (isButtonPressed == 1) {
+            cmd->buttons |= BT_ATTACK;
+        } else if (isButtonPressed == 0) {
+            cmd->buttons &= ~BT_ATTACK;
+        }
+
+        // write the rest to the start of the buffer
+        int j = 0;
+        for (int i = packetHeader + SERIAL_PACKET_SIZE * sizeof(BufferElement) ; i < serialBufferCount ; i++) {
+            serial_buf[j] = serial_buf[i];
+            serial_buf[i] = 0;
+
+            j++;
+        }
+
+        serialBufferCount = j;
+        packetHeader = -1;
+    }
+}
+
 //
 // G_BuildTiccmd
 // Builds a ticcmd from all of the available inputs
 // or reads it from the demo buffer. 
 // If recording a demo, write it out 
 // 
-void G_BuildTiccmd (ticcmd_t* cmd, int maketic, int nextWeapon) 
+void G_BuildTiccmd (ticcmd_t* cmd, int maketic, int serialPortDescriptor) 
 {
-    next_weapon = nextWeapon;
+    Serial_Read(cmd, serialPortDescriptor);
 
     int		i; 
     boolean	strafe;
@@ -651,8 +753,7 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic, int nextWeapon)
 
         carry = desired_angleturn - cmd->angleturn;
     }
-} 
- 
+}
 
 //
 // G_DoLoadLevel 

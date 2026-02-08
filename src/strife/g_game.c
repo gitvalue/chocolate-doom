@@ -335,7 +335,7 @@ static int G_NextWeapon(int direction)
 // or reads it from the demo buffer. 
 // If recording a demo, write it out 
 // 
-void G_BuildTiccmd (ticcmd_t* cmd, int maketic, int nextWeapon) 
+void G_BuildTiccmd (ticcmd_t* cmd, int maketic, int serialPortDescriptor) 
 { 
     int		i; 
     boolean	strafe;

@@ -123,20 +123,7 @@ static boolean local_playeringame[NET_MAXPLAYERS];
 
 static int player_class;
 
-// --- Arduino serial input (PoC) ---
-
-typedef int16_t BufferElement;
-
-#define SERIAL_PACKET_SIZE 6
-#define SERIAL_BUFFER_SIZE 4096
-
-static BufferElement delimiter = 0xFFFF;
 static int serial_fd = -1;
-static int8_t serial_buf[SERIAL_BUFFER_SIZE];
-static int serialBufferCount = 0;
-static int packetHeader = -1;
-static int numPacketsRead = 0;
-static int latestJoystickButtonTics[3] = { 0 };
 
 static int try_open_serial(const char *path)
 {
@@ -189,111 +176,6 @@ static void Serial_Close(void)
         serial_fd = -1;
     }
 }
-
-static void Serial_Read(ticcmd_t *cmd, int *nextWeapon)
-{
-    if (serial_fd < 0) return;
-
-    // int8_t byte = 0;
-    // while (0 < read(serial_fd, &byte, 1)) {
-    //     serial_buf[serial_head] = byte;
-    //     serial_head += 1;
-    // }
-
-    // if (SERIAL_PACKET_SIZE * sizeof(BufferElement) <= serial_head) {
-    //     int packageStartIndex = 0;
-    //     for (int i = 0; i <= serial_head - sizeof(BufferElement); i++) {
-    //         BufferElement element = *((BufferElement *)(serial_buf + i));
-    //     }
-    // }
-
-    int8_t chunk = 0;
-    
-    // first, put whatever is in I/O into buffer
-    while ((read(serial_fd, &chunk, 1) == 1) && (serialBufferCount < SERIAL_BUFFER_SIZE)) {
-        serial_buf[serialBufferCount] = chunk;
-        serialBufferCount += 1;
-        chunk = 0;
-    }
-
-    // If packetHeader is not set (-1) --> go (try) find the packet header
-    if ((packetHeader == -1) && (0 < serialBufferCount)) {
-        for (int i = 0; i <= serialBufferCount - sizeof(BufferElement); i++) {
-            BufferElement candidate = *((BufferElement *)(serial_buf + i));
-
-            if (candidate == delimiter) {
-                packetHeader = i;
-                break;
-            }
-        }
-    }
-
-    // if packetHeader was found and there's enough data to read --> read it
-    if ((packetHeader != -1) && ((SERIAL_PACKET_SIZE * sizeof(BufferElement)) <= (serialBufferCount - packetHeader))) {
-        BufferElement *packet = serial_buf + packetHeader;
-        // printf("Num pkets read = %d", numPacketsRead++);
-        // printf("sync = %d, zRotVel = %d, btn = %d, velX = %d, velY = %d, joyBtn=%d\n", packet[0], packet[1], packet[2], packet[3], packet[4], packet[5]);
-        // printf("gametic = %d\n", gametic);
-        // printf("tics = [%d, %d, %d]\n", latestJoystickButtonTics[0], latestJoystickButtonTics[1], latestJoystickButtonTics[2]);
-        // printf("tic rate = %d", TICRATE);
-
-        BufferElement sync = packet[0];
-        int zRotationVelocity = (int)(((double)packet[1] / (double)TICRATE) * 1080);
-        BufferElement isButtonPressed = packet[2];
-        BufferElement velocityX = packet[3];
-        BufferElement velocityY = packet[4];
-        BufferElement isJoystickButtonPressed = packet[5];
-
-        if (!isJoystickButtonPressed) {
-            int clickDelta = gametic - latestJoystickButtonTics[2];
-            if (2 < clickDelta) {
-                cmd->angleturn = zRotationVelocity;
-            }
-            
-            cmd->buttons &= ~BT_USE;
-        } else {
-            cmd->buttons |= BT_USE;
-
-            latestJoystickButtonTics[0] = latestJoystickButtonTics[1];
-            latestJoystickButtonTics[1] = latestJoystickButtonTics[2];
-            latestJoystickButtonTics[2] = gametic;
-        } 
-
-        int doubleClickDelta = latestJoystickButtonTics[2] - latestJoystickButtonTics[1];
-        if ((5 < doubleClickDelta) && (doubleClickDelta < 15)) {
-            *nextWeapon = 1;
-        } else {
-            *nextWeapon = 0;
-        }
-
-        cmd->forwardmove = ((velocityX - 506) * 30) / 506;
-        cmd->sidemove = -((velocityY - 499) * 30) / 499;
-        // x = 1023 --> forward
-        // x = 0 --> backwards
-        // x = 506 --> still
-        // y = 1023 --> left
-        // y = 0 --> right
-        // y = 499 -> still
-        if (isButtonPressed == 1) {
-            cmd->buttons |= BT_ATTACK;
-        } else if (isButtonPressed == 0) {
-            cmd->buttons &= ~BT_ATTACK;
-        }
-
-        // write the rest to the start of the buffer
-        int j = 0;
-        for (int i = packetHeader + SERIAL_PACKET_SIZE * sizeof(BufferElement) ; i < serialBufferCount ; i++) {
-            serial_buf[j] = serial_buf[i];
-            serial_buf[i] = 0;
-
-            j++;
-        }
-
-        serialBufferCount = j;
-        packetHeader = -1;
-    }
-}
-
 
 // 35 fps clock adjusted by offsetms milliseconds
 
@@ -356,10 +238,7 @@ static boolean BuildNewTic(void)
 
     //printf ("mk:%i ",maketic);
     memset(&cmd, 0, sizeof(ticcmd_t));
-    int nextWeapon = 0;
-
-    Serial_Read(&cmd, &nextWeapon);
-    loop_interface->BuildTiccmd(&cmd, maketic, nextWeapon);
+    loop_interface->BuildTiccmd(&cmd, maketic, serial_fd);
 
     if (net_client_connected)
     {
