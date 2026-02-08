@@ -159,12 +159,21 @@ static void Serial_Open(void)
 
     if (serial_fd >= 0) return;
 
-    int fd;
-    fd = try_open_serial("/dev/cu.usbmodem111301");
+    int i = M_CheckParmWithArgs("-serial_path", 1);
+
+    if (i > 0) {
+        char *serialPath = myargv[i + 1];
+
+        int fd;
+        fd = try_open_serial(serialPath);
     
-    if (fd >= 0) { 
-        serial_fd = fd; 
-        return; 
+        if (fd >= 0) { 
+            serial_fd = fd; 
+            return; 
+        }
+    }
+    else {
+        return;
     }
 }
 

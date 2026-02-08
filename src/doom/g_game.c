@@ -340,7 +340,6 @@ static int G_NextWeapon(int direction)
 static void Serial_Read(ticcmd_t *cmd, int serial_fd)
 {
     if (serial_fd < 0) return;
-    if (gamestate != GS_LEVEL) return;
 
     int8_t chunk = 0;
     
@@ -432,7 +431,9 @@ static void Serial_Read(ticcmd_t *cmd, int serial_fd)
 // 
 void G_BuildTiccmd (ticcmd_t* cmd, int maketic, int serialPortDescriptor) 
 {
-    Serial_Read(cmd, serialPortDescriptor);
+    if (gamestate == GS_LEVEL) {
+        Serial_Read(cmd, serialPortDescriptor);
+    }
 
     int		i; 
     boolean	strafe;
