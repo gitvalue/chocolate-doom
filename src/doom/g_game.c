@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <unistd.h>
+#include <termios.h>
 
 #include "doomdef.h" 
 #include "doomkeys.h"
@@ -245,8 +246,8 @@ static BufferElement delimiter = 0xFFFF;
 static int8_t serial_buf[SERIAL_BUFFER_SIZE];
 static int serialBufferCount = 0;
 static int packetHeader = -1;
-static int numPacketsRead = 0;
 static int latestJoystickButtonTics[3] = { 0 };
+static int fd = -1;
  
 int G_CmdChecksum (ticcmd_t* cmd) 
 { 
@@ -366,27 +367,26 @@ static void Serial_Read(ticcmd_t *cmd, int serial_fd)
     if ((packetHeader != -1) && ((SERIAL_PACKET_SIZE * sizeof(BufferElement)) <= (serialBufferCount - packetHeader))) {
         BufferElement *packet = serial_buf + packetHeader;
 
-        BufferElement sync = packet[0];
         int zRotationVelocity = (int)(((double)packet[1] / (double)TICRATE) * 1080);
         BufferElement isButtonPressed = packet[2];
         BufferElement velocityX = packet[3];
         BufferElement velocityY = packet[4];
         BufferElement isJoystickButtonPressed = packet[5];
 
-        if (!isJoystickButtonPressed) {
+        if (isJoystickButtonPressed) {
+            cmd->buttons |= BT_USE;
+
+            latestJoystickButtonTics[0] = latestJoystickButtonTics[1];
+            latestJoystickButtonTics[1] = latestJoystickButtonTics[2];
+            latestJoystickButtonTics[2] = gametic;
+        } else {
             int clickDelta = gametic - latestJoystickButtonTics[2];
             if (2 < clickDelta) {
                 cmd->angleturn = zRotationVelocity;
             }
             
             cmd->buttons &= ~BT_USE;
-        } else {
-            cmd->buttons |= BT_USE;
-
-            latestJoystickButtonTics[0] = latestJoystickButtonTics[1];
-            latestJoystickButtonTics[1] = latestJoystickButtonTics[2];
-            latestJoystickButtonTics[2] = gametic;
-        } 
+        }
 
         int doubleClickDelta = latestJoystickButtonTics[2] - latestJoystickButtonTics[1];
         if ((5 < doubleClickDelta) && (doubleClickDelta < 15)) {
@@ -395,14 +395,15 @@ static void Serial_Read(ticcmd_t *cmd, int serial_fd)
             next_weapon = 0;
         }
 
-        cmd->forwardmove = ((velocityX - 506) * 30) / 506;
-        cmd->sidemove = -((velocityY - 499) * 30) / 499;
         // x = 1023 --> forward
         // x = 0 --> backwards
         // x = 506 --> still
         // y = 1023 --> left
         // y = 0 --> right
         // y = 499 -> still
+        cmd->forwardmove = ((velocityX - 506) * 30) / 506;
+        cmd->sidemove = -((velocityY - 499) * 30) / 499;
+        
         if (isButtonPressed == 1) {
             cmd->buttons |= BT_ATTACK;
         } else if (isButtonPressed == 0) {
@@ -423,6 +424,16 @@ static void Serial_Read(ticcmd_t *cmd, int serial_fd)
     }
 }
 
+static void ClearSerialBuffer() {
+    memset(serial_buf, 0, SERIAL_BUFFER_SIZE * sizeof(int8_t));
+    serialBufferCount = 0;
+    packetHeader = -1;
+    memset(latestJoystickButtonTics, 0, 3 * sizeof(int));
+    if (fd) {
+        tcflush(fd, TCIOFLUSH);
+    }
+}
+
 //
 // G_BuildTiccmd
 // Builds a ticcmd from all of the available inputs
@@ -430,11 +441,10 @@ static void Serial_Read(ticcmd_t *cmd, int serial_fd)
 // If recording a demo, write it out 
 // 
 void G_BuildTiccmd (ticcmd_t* cmd, int maketic, int serialPortDescriptor) 
-{
-    if (gamestate == GS_LEVEL) {
-        Serial_Read(cmd, serialPortDescriptor);
-    }
-
+{       
+    Serial_Read(cmd, serialPortDescriptor);
+    fd = serialPortDescriptor;
+ 
     int		i; 
     boolean	strafe;
     boolean	bstrafe; 
@@ -1028,13 +1038,16 @@ void G_Ticker (void)
 	switch (gameaction) 
 	{ 
 	  case ga_loadlevel: 
-	    G_DoLoadLevel (); 
+	    G_DoLoadLevel ();
+        ClearSerialBuffer(); 
 	    break; 
 	  case ga_newgame: 
 	    G_DoNewGame (); 
+        ClearSerialBuffer();
 	    break; 
 	  case ga_loadgame: 
 	    G_DoLoadGame (); 
+        ClearSerialBuffer();
 	    break; 
 	  case ga_savegame: 
 	    G_DoSaveGame (); 

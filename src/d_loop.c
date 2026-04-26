@@ -155,7 +155,7 @@ static int try_open_serial(const char *path)
 
 static void Serial_Open(void)
 {
-    printf("Opening serial port...\n");
+    printf("Opening serial port...\n");as
 
     if (serial_fd >= 0) return;
 

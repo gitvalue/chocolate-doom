@@ -49,5 +49,5 @@ void loop() {
   Serial.write((uint8_t *)buffer, 6 * sizeof(BufferElement));
   Serial.flush();
 
-  delay(29);
+  delay(29); // Assuming tic = 1/35 sec
 }
