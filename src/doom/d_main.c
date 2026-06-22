@@ -56,7 +56,6 @@
 #include "i_input.h"
 #include "i_joystick.h"
 #include "i_system.h"
-#include "i_tft_st7735s.h"
 #include "i_timer.h"
 #include "i_video.h"
 
@@ -128,18 +127,6 @@ int             show_diskicon = 1;
 void D_ConnectNetGame(void);
 void D_CheckNetGame(void);
 
-static void D_RunTFTDemoOnce(void)
-{
-    static boolean already_run = false;
-
-    if (already_run)
-    {
-        return;
-    }
-
-    already_run = true;
-    I_TFT_ST7735S_RunDemo();
-}
 
 //
 // D_ProcessEvents
@@ -1986,7 +1973,6 @@ void D_DoomMain (void)
     {
 	singledemo = true;              // quit after one demo
 	G_DeferedPlayDemo (demolumpname);
-        D_RunTFTDemoOnce();
 	D_DoomLoop ();  // never returns
     }
 	
@@ -1994,7 +1980,6 @@ void D_DoomMain (void)
     if (p)
     {
 	G_TimeDemo (demolumpname);
-        D_RunTFTDemoOnce();
 	D_DoomLoop ();  // never returns
     }
 	
@@ -2012,6 +1997,6 @@ void D_DoomMain (void)
 	    D_StartTitle ();                // start up intro loop
     }
 
-    D_RunTFTDemoOnce();
     D_DoomLoop ();  // never returns
 }
+

@@ -83,6 +83,7 @@ set(GAME_SOURCE_FILES
     i_sdlmusic.c
     i_sdlsound.c
     i_sound.c           i_sound.h
+    i_tft_st7735s.c     i_tft_st7735s.h
     i_timer.c           i_timer.h
     i_video.c           i_video.h
     i_videohr.c         i_videohr.h
@@ -127,6 +128,13 @@ set(GAME_SOURCE_FILES
 
 set(GAME_INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/../")
 
+if(HAVE_TFT_ST7735S_WPI)
+    list(APPEND GAME_SOURCE_FILES
+         "${PROJECT_SOURCE_DIR}/../driver-ST7735S/source/st7735s.c")
+    list(APPEND GAME_INCLUDE_DIRS
+         "${PROJECT_SOURCE_DIR}/../driver-ST7735S/source")
+endif()
+
 if(WIN32)
     list(APPEND GAME_SOURCE_FILES
          "../win32/win_opendir.c" "../win32/win_opendir.h")
@@ -148,6 +156,9 @@ set(SOURCE_FILES ${COMMON_SOURCE_FILES} ${GAME_SOURCE_FILES})
 set(SOURCE_FILES_WITH_DEH ${SOURCE_FILES} ${DEHACKED_SOURCE_FILES})
 
 set(EXTRA_LIBS ${SDL_LINK_LIBS} textscreen pcsound opl)
+if(HAVE_TFT_ST7735S_WPI)
+    list(APPEND EXTRA_LIBS "${WIRINGPI_LIBRARY}")
+endif()
 if(SampleRate_FOUND)
     list(APPEND EXTRA_LIBS SampleRate::samplerate)
 endif()

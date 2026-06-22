@@ -79,6 +79,7 @@ find_package(m)
 find_library(WIRINGPI_LIBRARY wiringPi)
 if(WIRINGPI_LIBRARY)
     set(HAVE_TFT_ST7735S_WPI TRUE)
+    add_compile_definitions(HAVE_TFT_ST7735S_WPI=1)
 endif()
 
 include(CheckSymbolExists)

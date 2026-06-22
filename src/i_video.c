@@ -37,6 +37,7 @@
 #include "i_input.h"
 #include "i_joystick.h"
 #include "i_system.h"
+#include "i_tft_st7735s.h"
 #include "i_timer.h"
 #include "i_video.h"
 #include "m_argv.h"
@@ -283,6 +284,7 @@ void I_ShutdownGraphics(void)
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(screen);
         SDL_QuitSubSystem(SDL_INIT_VIDEO);
+        I_TFT_ST7735S_Shutdown();
 
         initialized = false;
     }
@@ -818,6 +820,7 @@ void I_FinishUpdate (void)
     // Draw!
 
     SDL_RenderPresent(renderer);
+    I_TFT_ST7735S_Update(I_VideoBuffer, palette);
 
     // Restore background and undo the disk indicator, if it was drawn.
     V_RestoreDiskBackground();
@@ -1499,6 +1502,7 @@ void I_InitGraphics(void)
     // Clear the screen to black.
 
     memset(I_VideoBuffer, 0, SCREENWIDTH * SCREENHEIGHT * sizeof(*I_VideoBuffer));
+    I_TFT_ST7735S_Init();
 
     // clear out any events waiting at the start and center the mouse
   

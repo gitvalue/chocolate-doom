@@ -24,6 +24,13 @@ AM_CFLAGS = -I$(top_srcdir)/textscreen            \
             -I$(top_srcdir)/win32                 \
             @SDLMIXER_CFLAGS@ @SDLNET_CFLAGS@
 
+if HAVE_TFT_ST7735S_WPI
+AM_CFLAGS += -I$(top_srcdir)/../driver-ST7735S/source
+ST7735S_WPI_SOURCE = $(top_srcdir)/../driver-ST7735S/source/st7735s.c
+else
+ST7735S_WPI_SOURCE =
+endif
+
 # Common source files used by absolutely everything:
 
 COMMON_SOURCE_FILES=\
@@ -80,6 +87,7 @@ i_pcsound.c                                \
 i_sdlmusic.c                               \
 i_sdlsound.c                               \
 i_sound.c            i_sound.h             \
+i_tft_st7735s.c      i_tft_st7735s.h       \
 i_timer.c            i_timer.h             \
 i_video.c            i_video.h             \
 i_videohr.c          i_videohr.h           \
@@ -120,6 +128,7 @@ w_file_stdc.c                              \
 w_file_posix.c                             \
 w_file_win32.c                             \
 w_merge.c            w_merge.h             \
+$(ST7735S_WPI_SOURCE)                      \
 $(top_builddir)/win32/win_opendir.c        \
 $(top_builddir)/win32/win_opendir.h
 
@@ -156,7 +165,8 @@ EXTRA_LIBS =                                               \
                @EM_LDFLAGS@                                \
                @SDL_LIBS@                                  \
                @SDLMIXER_LIBS@                             \
-               @SDLNET_LIBS@
+               @SDLNET_LIBS@                               \
+               @WIRINGPI_LIBS@
 
 if HAVE_WINDRES
 @PROGRAM_PREFIX@doom_SOURCES=$(SOURCE_FILES_WITH_DEH) doom-res.rc
@@ -164,7 +174,7 @@ else
 @PROGRAM_PREFIX@doom_SOURCES=$(SOURCE_FILES_WITH_DEH)
 endif
 
-@PROGRAM_PREFIX@doom_LDADD = doom/libdoom.a $(EXTRA_LIBS) @WIRINGPI_LIBS@
+@PROGRAM_PREFIX@doom_LDADD = doom/libdoom.a $(EXTRA_LIBS)
 
 if HAVE_WINDRES
 @PROGRAM_PREFIX@heretic_SOURCES=$(SOURCE_FILES_WITH_DEH) heretic-res.rc
