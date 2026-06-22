@@ -76,6 +76,11 @@ endif()
 
 find_package(m)
 
+find_library(WIRINGPI_LIBRARY wiringPi)
+if(WIRINGPI_LIBRARY)
+    set(HAVE_TFT_ST7735S_WPI TRUE)
+endif()
+
 include(CheckSymbolExists)
 include(CheckIncludeFile)
 check_symbol_exists(strcasecmp "strings.h" HAVE_DECL_STRCASECMP)

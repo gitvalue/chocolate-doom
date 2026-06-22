@@ -1,5 +1,13 @@
 AM_CFLAGS = -I$(top_srcdir)/src @SDL_CFLAGS@ @SDLMIXER_CFLAGS@ @SDLNET_CFLAGS@
 
+if HAVE_TFT_ST7735S_WPI
+AM_CFLAGS += -DHAVE_TFT_ST7735S_WPI=1 \
+             -I$(top_srcdir)/../driver-ST7735S/source
+ST7735S_WPI_SOURCE = $(top_srcdir)/../driver-ST7735S/source/st7735s.c
+else
+ST7735S_WPI_SOURCE =
+endif
+
 EXTRA_DIST =                    \
         CMakeLists.txt          \
         doom_icon.c
@@ -34,6 +42,7 @@ f_wipe.c           f_wipe.h     \
 g_game.c           g_game.h     \
 hu_lib.c           hu_lib.h     \
 hu_stuff.c         hu_stuff.h   \
+i_tft_st7735s.c    i_tft_st7735s.h \
 info.c             info.h       \
 m_menu.c           m_menu.h     \
 m_random.c         m_random.h   \
@@ -73,7 +82,8 @@ sounds.c           sounds.h     \
 statdump.c         statdump.h   \
 st_lib.c           st_lib.h     \
 st_stuff.c         st_stuff.h   \
-wi_stuff.c         wi_stuff.h
+wi_stuff.c         wi_stuff.h   \
+$(ST7735S_WPI_SOURCE)
 
 if HAVE_ICONS
 

@@ -209,6 +209,15 @@ esac
 
 AC_CHECK_LIB(m, log)
 
+AC_CHECK_LIB(wiringPi, wiringPiSetup, [
+    AC_DEFINE([HAVE_TFT_ST7735S_WPI], [1],
+              [ST7735S TFT display support via WiringPi])
+    WIRINGPI_LIBS="-lwiringPi"
+], [
+    WIRINGPI_LIBS=""
+])
+AC_SUBST(WIRINGPI_LIBS)
+
 AC_CHECK_HEADERS([dirent.h linux/kd.h dev/isa/spkrio.h dev/speaker/speaker.h])
 AC_CHECK_FUNCS(mmap ioperm)
 AC_CHECK_DECLS([strcasecmp, strncasecmp], [], [], [[#include <strings.h>]])
@@ -238,6 +247,7 @@ AS_IF([test "x$enable_werror" = "xyes"], [
 ])
 
 AM_CONDITIONAL(HAVE_WINDRES, test "$WINDRES" != "")
+AM_CONDITIONAL(HAVE_TFT_ST7735S_WPI, test "x$WIRINGPI_LIBS" != "x")
 AM_CONDITIONAL(HAVE_BASH_COMPLETION, [test "x$enable_bash_completion" != xno])
 AM_CONDITIONAL(HAVE_DOC, [test "x$enable_doc" != xno])
 AM_CONDITIONAL(HAVE_FONTS, [test "x$enable_fonts" != xno])

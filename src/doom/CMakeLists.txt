@@ -26,6 +26,7 @@ add_library(doom STATIC
             g_game.c        g_game.h
             hu_lib.c        hu_lib.h
             hu_stuff.c      hu_stuff.h
+            i_tft_st7735s.c i_tft_st7735s.h
             info.c          info.h
             m_menu.c        m_menu.h
             m_random.c      m_random.h
@@ -67,7 +68,18 @@ add_library(doom STATIC
             st_stuff.c      st_stuff.h
             wi_stuff.c      wi_stuff.h)
 
+if(HAVE_TFT_ST7735S_WPI)
+    target_sources(doom PRIVATE
+                   "${PROJECT_SOURCE_DIR}/../driver-ST7735S/source/st7735s.c")
+endif()
+
 target_include_directories(doom PRIVATE "../" "${CMAKE_CURRENT_BINARY_DIR}/../../")
+
+if(HAVE_TFT_ST7735S_WPI)
+    target_include_directories(doom PRIVATE
+                               "${PROJECT_SOURCE_DIR}/../driver-ST7735S/source")
+    target_compile_definitions(doom PRIVATE HAVE_TFT_ST7735S_WPI=1)
+endif()
 
 if (DEFINED EMSCRIPTEN)
     set(SDL_FLAGS "-s USE_SDL=2")
@@ -87,5 +99,8 @@ else()
     endif()
 endif()
 target_link_libraries(doom ${SDL_LINK_LIBS})
+if(HAVE_TFT_ST7735S_WPI)
+    target_link_libraries(doom "${WIRINGPI_LIBRARY}" m)
+endif()
 set_target_properties(doom PROPERTIES COMPILE_FLAGS "${SDL_FLAGS}")
 set_target_properties(doom PROPERTIES LINK_FLAGS "${SDL_FLAGS}")
