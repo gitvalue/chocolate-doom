@@ -496,6 +496,8 @@ void I_StartTic (void)
         I_ReadMouse();
     }
 
+    I_ReadGPIO();
+
     if (joywait < I_GetTime())
     {
         I_UpdateJoystick();

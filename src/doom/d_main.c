@@ -1768,6 +1768,7 @@ void D_DoomMain (void)
     I_CheckIsScreensaver();
     I_InitTimer();
     I_InitJoystick();
+    I_InitGPIO();
     I_InitSound(doom);
     I_InitMusic();
 

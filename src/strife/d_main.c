@@ -2073,6 +2073,7 @@ void D_DoomMain (void)
         DEH_printf("I_Init: Setting up machine state.\n");
     I_CheckIsScreensaver();
     I_InitJoystick();
+    I_InitGPIO();
     D_IntroTick(); // [STRIFE]
 
     D_IntroTick(); // [STRIFE]

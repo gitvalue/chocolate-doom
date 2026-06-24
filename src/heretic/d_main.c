@@ -1069,6 +1069,7 @@ void D_DoomMain(void)
     tprintf(DEH_String("I_Init: Setting up machine state.\n"), 1);
     I_CheckIsScreensaver();
     I_InitJoystick();
+    I_InitGPIO();
     IncThermo();
 
     tprintf(DEH_String("S_Init: Setting up sound.\n"), 1);

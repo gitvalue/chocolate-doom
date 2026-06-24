@@ -32,6 +32,9 @@ extern int mouse_threshold;
 
 void I_BindInputVariables(void);
 void I_ReadMouse(void);
+void I_InitGPIO(void);
+void I_ReadGPIO(void);
+void I_ShutdownGPIO(void);
 
 // I_StartTextInput begins text input, activating the on-screen keyboard
 // (if one is used). The caller indicates that any entered text will be
