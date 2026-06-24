@@ -151,9 +151,11 @@ void I_TFT_ST7735S_Update(const pixel_t *screen, const SDL_Color *palette)
 
         for (x = 0; x < TFT_WIDTH; ++x)
         {
+            int src_x;
             unsigned short rgb565;
 
-            rgb565 = RGB565(palette[src_row[x * 2]]);
+            src_x = SCREENWIDTH - 1 - (x * 2);
+            rgb565 = RGB565(palette[src_row[src_x]]);
             dst_row[x * 2] = rgb565 >> 8;
             dst_row[x * 2 + 1] = rgb565 & 0xff;
         }
